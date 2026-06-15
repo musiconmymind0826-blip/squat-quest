@@ -1,0 +1,37 @@
+{
+ "name": "SQUAT QUEST 〜運命を断つ者〜",
+ "short_name": "SQUAT QUEST",
+ "description": "スクワット1回が剣の一閃。物語を進めて怠惰の魔王を倒す、運動が続くRPG。",
+ "start_url": "./index.html",
+ "scope": "./",
+ "display": "standalone",
+ "orientation": "portrait",
+ "background_color": "#07060a",
+ "theme_color": "#07060a",
+ "lang": "ja",
+ "categories": [
+  "games",
+  "health",
+  "fitness"
+ ],
+ "icons": [
+  {
+   "src": "icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}
