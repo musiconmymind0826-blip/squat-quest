@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: app:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>SQUAT QUEST 〜運命を断つ者〜</title>
 <meta name="theme-color" content="#07060a">
@@ -515,6 +517,14 @@ img{pointer-events:none;-webkit-user-drag:none;}
     </div>
   </div>
 
+    <div class="overlay" id="infoOv">
+    <div class="panel">
+      <h2 id="infoTitle"></h2>
+      <div id="infoBody" style="font-size:13px;line-height:1.9;text-align:left;max-height:50vh;overflow-y:auto"></div>
+      <button class="okbtn" onclick="hide('infoOv')">閉じる</button>
+    </div>
+  </div>
+
   <div class="overlay" id="titleOv">
     <div id="titleBg"></div>
     <div id="titleInner">
@@ -527,6 +537,11 @@ img{pointer-events:none;-webkit-user-drag:none;}
         <button id="voiceToggle">📣 応援ボイス: ON</button>
         <button id="bgmToggle">🎵 BGM: ON</button>
         <button id="remindToggle">⏰ 悪魔の囁き通知: OFF</button>
+      </div>
+      <div style="margin-top:12px;font-size:11px;opacity:.75;display:flex;gap:14px;flex-wrap:wrap;justify-content:center;text-shadow:0 2px 4px #000">
+        <button id="safetyLink" style="text-decoration:underline">⚠ 運動前の注意</button>
+        <button id="privacyLink" style="text-decoration:underline">プライバシー</button>
+        <button id="resetLink" style="text-decoration:underline">データを消去</button>
       </div>
       <div id="pwaHint" style="font-size:11px;opacity:.7;margin-top:10px;text-shadow:0 2px 4px #000;display:none">📲 ブラウザのメニューから「ホーム画面に追加」でアプリ化できます</div>
     </div>
@@ -752,7 +767,7 @@ const PROLOGUE=[
  ["天使","——現れたわ。あなたよ!あなたの脚に、世界を救う光が見える!"],
  ["悪魔","おいおいやめとけって。今日は帰ってゴロゴロしようぜ〜。な?"],
  ["天使","ダメよ!さあ、一回しゃがむの。物語は、その一回から始まるわ!"],
- ["レグナルド","……肩の上が騒がしい奴らだ。だが——俺が選ぶのは、すべてを終わらせる道だ。"]];
+ ["レグナルド","……肩の上が騒がしい奴らだ。だが——自分自身に勝つ。俺のスクワットで、世界を救うために。"]];
 const SWORD_SCENES={
  first:[["長老","これが聖剣スクワットカリバーじゃ。幾多の豪傑が挑んだが、ビクともせなんだ。"],
   ["長老","碑文にはこうある——『鍛えし脚のみが、我を抜く』…剣だけに、手も足も出んかったわけじゃな。ほっほ。"]],
@@ -795,7 +810,29 @@ const DEFAULT=()=>({lv:1,xp:0,gold:0,atkBonus:0,weapon:0,chapter:0,mobIdx:0,loop
 let S=null,enemy=null,combo=0,comboTimer=null,rhythm=false,rhythmTimer=null,rhythmPhase=0;
 let lastVoice=0,idleTimer=null;
 async function save(){try{localStorage.setItem('squatquest-save',JSON.stringify(S));}catch(e){}}
-async function load(){try{const v=localStorage.getItem('squatquest-save');return v?JSON.parse(v):null;}catch(e){}return null;}
+async function load(){try{const v=localStorage.getItem('squatquest-save');if(!v)return null;
+  const o=JSON.parse(v);if(!o||typeof o!=='object')return null;return sanitizeSave(o);}catch(e){return null;}}
+/* 壊れた/改ざんされたセーブを安全な範囲に矯正する */
+function sanitizeSave(o){
+  const num=(v,min,max,def)=>{const n=Number(v);return (Number.isFinite(n)&&n>=min&&n<=max)?Math.floor(n):def;};
+  const out={};
+  out.lv=num(o.lv,1,9999,1);out.xp=num(o.xp,0,1e9,0);out.gold=num(o.gold,0,1e12,0);
+  out.atkBonus=num(o.atkBonus,0,1e6,0);out.weapon=num(o.weapon,0,WEAPONS.length-1,0);
+  out.chapter=num(o.chapter,0,CHAPTERS.length-1,0);out.mobIdx=num(o.mobIdx,0,7,0);
+  out.loop=num(o.loop,1,9999,1);out.totalReps=num(o.totalReps,0,1e9,0);out.todayReps=num(o.todayReps,0,1e7,0);
+  out.streak=num(o.streak,0,1e6,0);out.sword=num(o.sword,0,3,0);
+  out.qIdx=num(o.qIdx,0,1e6,0);out.qProg=num(o.qProg,0,1e7,0);out.qClear=num(o.qClear,0,1e6,0);
+  out.gallerySeen=num(o.gallerySeen,0,99,0);out.remindHour=(o.remindHour==null)?null:num(o.remindHour,0,23,null);
+  out.questDone=!!o.questDone;out.qActive=(o.qActive!==false);
+  out.sound=(o.sound!==false);out.voice=(o.voice!==false);out.bgm=(o.bgm!==false);out.prologueDone=!!o.prologueDone;
+  // 文字列は長さ制限(異常データ防止)
+  const str=(v,len)=>(typeof v==='string'&&v.length<=len)?v:"";
+  out.lastDay=str(o.lastDay,16);out.remindFired=str(o.remindFired,16);out.lastWeekRep=str(o.lastWeekRep,12);
+  // オブジェクト系は型のみ担保(キー総数も制限)
+  const obj=(v,cap)=>{if(!v||typeof v!=='object'||Array.isArray(v))return {};
+    const k=Object.keys(v).slice(0,cap);const r={};k.forEach(key=>r[key]=v[key]);return r;};
+  out.items=obj(o.items,50);out.seenIntro=obj(o.seenIntro,40);out.log=obj(o.log,40);
+  return out;}
 
 /* ================================================================ AUDIO */
 /* 触覚フィードバック: Capacitor(ネイティブ)→Web Vibration→無し の順 */
@@ -1341,7 +1378,7 @@ $('soundToggle').onclick=()=>{S.sound=!S.sound;$('soundToggle').textContent=S.so
  $('bgmToggle').textContent=S.bgm?'🎵 BGM: ON':'🎵 BGM: OFF';save();};
 $('bgmToggle').onclick=()=>{S.bgm=!S.bgm;$('bgmToggle').textContent=S.bgm?'🎵 BGM: ON':'🎵 BGM: OFF';if(S.bgm)startBGM();else stopBGM();save();};
 $('voiceToggle').onclick=()=>{S.voice=!S.voice;$('voiceToggle').textContent=S.voice?'📣 応援ボイス: ON':'🔕 応援ボイス: OFF';save();};
-$('startBtn').onclick=()=>{ac();hide('titleOv');sKill();resetIdle();startBGM();
+$('startBtn').onclick=()=>{ac();maybeShowFirstSafety();hide('titleOv');sKill();resetIdle();startBGM();
  if(!S.prologueDone){S.prologueDone=true;S.seenIntro[0]=true;save();
   playScenes(PROLOGUE,()=>{msg('スクワット一回が、黒剣の一閃。<br>しゃがんで立ったら、ボタンを押せ。');
    angelSay("一緒にがんばりましょ!まずは一回!",true);
@@ -1353,6 +1390,42 @@ $('startBtn').onclick=()=>{ac();hide('titleOv');sKill();resetIdle();startBGM();
   const wk=isoWeek(new Date());
   if(S.lastWeekRep&&S.lastWeekRep!==wk&&Object.keys(S.log||{}).length>0)setTimeout(showReport,1500);
   S.lastWeekRep=wk;save();}};
+
+
+/* ================================================================
+   安全・プライバシー・データ管理 (リリース対応)
+================================================================ */
+const SAFETY_TEXT=`<p><b>これはゲームです。</b>本アプリは運動を楽しく続けるための娯楽作品で、医療・治療・診断を目的とするものではありません。病気の予防や治療の効果を保証するものではありません。</p>
+<p><b>運動の前に。</b>持病のある方、妊娠中の方、関節や腰・膝に不安のある方、体調のすぐれない方は、運動を始める前に医師にご相談ください。</p>
+<p><b>無理をしないでください。</b>痛み・めまい・息切れ・強い疲労を感じたら、すぐに中止して休んでください。正しいフォーム(膝とつま先を同じ向きに、深く呼吸を)を心がけ、周囲に物のない安全な場所で行ってください。</p>
+<p><b>免責。</b>本アプリの利用、または利用できないことによって生じたいかなる損害・けがについても、開発者・提供者は責任を負いかねます。ご自身の体調と判断で、安全にお楽しみください。</p>`;
+const PRIVACY_TEXT=`<p>本アプリは、利用者の個人情報を収集・送信しません。</p>
+<p>ゲームの進行データ(レベル・回数・設定など)は、お使いの端末内にのみ保存され、外部サーバーへ送信されることはありません。</p>
+<p>通知を有効にした場合も、通知の表示はすべて端末内で完結し、外部に情報は送信されません。</p>
+<p>本アプリは広告を表示せず、第三者の解析ツールも使用しません。アカウント登録も不要です。</p>
+<p>データを消したいときは、タイトル画面の「データを消去」からいつでも削除できます。</p>
+<p>本アプリは iwanari の個人開発です。お問い合わせ: musiconmymind0826@icloud.com</p>`;
+function showInfo(title,html){$('infoTitle').textContent=title;$('infoBody').innerHTML=html;show('infoOv');}
+function bindSafetyUI(){
+ const s=$('safetyLink'),p=$('privacyLink'),r=$('resetLink');
+ if(s)s.onclick=()=>showInfo('安全のための注意',SAFETY_TEXT);
+ if(p)p.onclick=()=>showInfo('プライバシーポリシー',PRIVACY_TEXT);
+ if(r)r.onclick=async()=>{
+   if(confirm('冒険のデータ(レベル・回数・設定)をすべて消去します。よろしいですか?この操作は元に戻せません。')){
+    try{localStorage.removeItem('squatquest-save');}catch(e){}
+    try{if(window.storage&&window.storage.set)await window.storage.set('squatquest-save','');}catch(e){}
+    location.reload();}};
+}
+/* 初回のみ運動の注意を表示(同意を記録) */
+function maybeShowFirstSafety(){
+ let agreed=false;try{agreed=localStorage.getItem('squatquest-safety')==='1';}catch(e){}
+ if(!agreed){
+   $('infoTitle').textContent='はじめる前に — 安全のための注意';
+   $('infoBody').innerHTML=SAFETY_TEXT;
+   show('infoOv');
+   try{localStorage.setItem('squatquest-safety','1');}catch(e){}
+ }
+}
 
 /* ================================================================ BOOT */
 window.addEventListener('resize',sizeCanvases);
@@ -1367,8 +1440,9 @@ window.addEventListener('resize',sizeCanvases);
  $('avatar').src=IMG.heroFace2;
  $('angelImg').src=CHARIMG.angelChar;$('devilImg').src=CHARIMG.devilChar;
  refreshRemindUI();startRemindLoop();
+ bindSafetyUI();
  // PWA: GitHub Pages等のHTTPSではService Worker登録(ローカル/プレビューでは黙ってスキップ)
- try{if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
+ try{/* Capacitorネイティブでは Service Worker を使わない(file://のため) */}catch(e){}
  try{const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
   if(!standalone)$('pwaHint').style.display='block';}catch(e){}
  if(!S.lastWeekRep){S.lastWeekRep=isoWeek(new Date());}
